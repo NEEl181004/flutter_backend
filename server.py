@@ -48,6 +48,19 @@ try:
             payment_date DATE DEFAULT CURRENT_DATE
         );
     """)
+    # ✅ Add this after existing table creation in DB setup:
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS parking_tickets (
+            id SERIAL PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            location TEXT NOT NULL,
+            date DATE NOT NULL,
+            time TEXT NOT NULL,
+            slot TEXT NOT NULL,
+            payment_status TEXT DEFAULT 'Paid',
+            booking_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
 
     conn.commit()
     print("✅ Connected to DB and ensured all tables exist")
@@ -145,6 +158,49 @@ def get_payment_history(consumer_number):
         return jsonify(result), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@app.route('/book_parking', methods=['POST'])
+def book_parking():
+    data = request.get_json()
+    email = data.get('email')
+    location = data.get('location')
+    date_str = data.get('date')  # e.g. "2025-04-20"
+    time = data.get('time')      # e.g. "10:30 AM"
+    slot = data.get('slot')      # e.g. "A5"
+
+    try:
+        cursor.execute("""
+            INSERT INTO parking_tickets (user_email, location, date, time, slot, payment_status)
+            VALUES (%s, %s, %s, %s, %s, 'Paid')
+        """, (email, location, date_str, time, slot))
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'Ticket booked successfully'}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/my_tickets/<email>', methods=['GET'])
+def get_my_tickets(email):
+    try:
+        cursor.execute("""
+            SELECT location, date, time, slot, payment_status, booking_timestamp
+            FROM parking_tickets
+            WHERE user_email = %s
+            ORDER BY booking_timestamp DESC
+        """, (email,))
+        records = cursor.fetchall()
+        result = [{
+            'location': r[0],
+            'date': r[1].strftime('%Y-%m-%d'),
+            'time': r[2],
+            'slot': r[3],
+            'payment_status': r[4],
+            'booked_on': r[5].strftime('%Y-%m-%d %H:%M')
+        } for r in records]
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 
 # ===================== MAIN =====================
