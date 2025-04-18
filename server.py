@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import psycopg2
 import os
-from datetime import date
+from datetime import date, datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -21,6 +21,15 @@ try:
     # Create users table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        );
+    """)
+
+    # Create admins table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
             id SERIAL PRIMARY KEY,
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL
@@ -48,7 +57,7 @@ try:
             payment_date DATE DEFAULT CURRENT_DATE
         );
     """)
-    # ✅ Add this after existing table creation in DB setup:
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS parking_tickets (
             id SERIAL PRIMARY KEY,
@@ -67,8 +76,8 @@ try:
 except Exception as e:
     print("❌ Database connection/setup failed:", e)
 
-
 # ===================== AUTH ROUTES =====================
+
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
@@ -91,19 +100,36 @@ def login():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
+    is_admin = data.get('admin', False)
 
     try:
-        cursor.execute("SELECT * FROM users WHERE email=%s AND password=%s", (email, password))
+        if is_admin:
+            cursor.execute("SELECT * FROM admins WHERE email=%s AND password=%s", (email, password))
+        else:
+            cursor.execute("SELECT * FROM users WHERE email=%s AND password=%s", (email, password))
+
         user = cursor.fetchone()
         if user:
-            return jsonify({'status': 'success'}), 200
+            return jsonify({'status': 'success', 'role': 'admin' if is_admin else 'user'}), 200
         else:
             return jsonify({'status': 'invalid_credentials'}), 401
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/validate_email', methods=['POST'])
+def validate_email():
+    data = request.get_json()
+    email = data.get('email')
+
+    try:
+        cursor.execute("SELECT 1 FROM users WHERE email=%s", (email,))
+        user_exists = cursor.fetchone() is not None
+        return jsonify({'valid': user_exists}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # ===================== BILL ROUTES =====================
+
 @app.route('/bills/<consumer_number>', methods=['GET'])
 def get_pending_bills(consumer_number):
     try:
@@ -118,7 +144,6 @@ def get_pending_bills(consumer_number):
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-
 @app.route('/pay_bill', methods=['POST'])
 def pay_bill():
     data = request.get_json()
@@ -128,21 +153,17 @@ def pay_bill():
     amount = data.get('amount')
 
     try:
-        # Insert into payment history
         cursor.execute("""
             INSERT INTO payment_history (consumer_number, title, amount, payment_date)
             VALUES (%s, %s, %s, %s)
         """, (consumer_number, title, amount, date.today()))
 
-        # Delete from pending bills
         cursor.execute("DELETE FROM pending_bills WHERE id = %s", (bill_id,))
-
         conn.commit()
         return jsonify({'status': 'success'}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
 
 @app.route('/payment_history/<consumer_number>', methods=['GET'])
 def get_payment_history(consumer_number):
@@ -158,15 +179,17 @@ def get_payment_history(consumer_number):
         return jsonify(result), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-    
+
+# ===================== PARKING ROUTES =====================
+
 @app.route('/book_parking', methods=['POST'])
 def book_parking():
     data = request.get_json()
     email = data.get('email')
     location = data.get('location')
-    date_str = data.get('date')  # e.g. "2025-04-20"
-    time = data.get('time')      # e.g. "10:30 AM"
-    slot = data.get('slot')      # e.g. "A5"
+    date_str = data.get('date')
+    time = data.get('time')
+    slot = data.get('slot')
 
     try:
         cursor.execute("""
@@ -200,15 +223,12 @@ def get_my_tickets(email):
         return jsonify(result), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-    
-from datetime import datetime, timedelta
 
 @app.route('/occupied_slots', methods=['POST'])
 def get_occupied_slots():
     data = request.get_json()
     location = data['location']
     date_str = data['date']
-    time_str = data['time']
 
     try:
         cursor.execute("""
@@ -220,9 +240,6 @@ def get_occupied_slots():
         return jsonify({'occupied_slots': occupied}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
-
 
 # ===================== MAIN =====================
 if __name__ == '__main__':
