@@ -200,6 +200,30 @@ def get_my_tickets(email):
         return jsonify(result), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+from datetime import datetime, timedelta
+
+@app.route('/get_occupied_slots', methods=['GET'])
+def get_occupied_slots():
+    try:
+        # Get current timestamp and calculate cutoff for 1 hour before now
+        current_time = datetime.now()
+        one_hour_ago = current_time - timedelta(hours=1)
+
+        # Fetch all slots booked within the last 1 hour
+        cursor.execute("""
+            SELECT slot FROM parking_tickets 
+            WHERE booking_timestamp >= %s
+        """, (one_hour_ago,))
+        slots = cursor.fetchall()
+
+        # Flatten the result and return as a list
+        occupied_slots = [s[0] for s in slots]
+
+        return jsonify({'occupied_slots': occupied_slots}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 
 
