@@ -203,26 +203,23 @@ def get_my_tickets(email):
     
 from datetime import datetime, timedelta
 
-@app.route('/get_occupied_slots', methods=['GET'])
+@app.route('/occupied_slots', methods=['POST'])
 def get_occupied_slots():
+    data = request.get_json()
+    location = data['location']
+    date_str = data['date']
+    time_str = data['time']
+
     try:
-        # Get current timestamp and calculate cutoff for 1 hour before now
-        current_time = datetime.now()
-        one_hour_ago = current_time - timedelta(hours=1)
-
-        # Fetch all slots booked within the last 1 hour
         cursor.execute("""
-            SELECT slot FROM parking_tickets 
-            WHERE booking_timestamp >= %s
-        """, (one_hour_ago,))
-        slots = cursor.fetchall()
-
-        # Flatten the result and return as a list
-        occupied_slots = [s[0] for s in slots]
-
-        return jsonify({'occupied_slots': occupied_slots}), 200
+            SELECT slot FROM parking_tickets
+            WHERE location = %s AND date = %s
+              AND ABS(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - booking_timestamp)))/3600 < 1
+        """, (location, date_str))
+        occupied = [row[0] for row in cursor.fetchall()]
+        return jsonify({'occupied_slots': occupied}), 200
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
 
