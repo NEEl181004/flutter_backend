@@ -45,4 +45,6 @@ def login():
         return jsonify({'status': 'invalid_credentials'}), 401
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)  # Port doesn't matter on Render
+    from os import environ
+    port = int(environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)  # Port doesn't matter on Render
