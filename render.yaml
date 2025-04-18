@@ -7,12 +7,12 @@ services:
     startCommand: python server.py
     envVars:
       - key: DB_HOST
-        value: localhost
+        value: dpg-d016dlvgi27c73a184dg-a
       - key: DB_NAME
-        value: postgres
+        value: project_xuiv
       - key: DB_USER
-        value: postgres
+        value: project_xuiv_user
       - key: DB_PASSWORD
-        value: 31998369
+        value: s4gOVoZe0qEP2XvkUctR4zTymOTUDYb1
       - key: DB_PORT
-        value: 6543
+        value: 5432
