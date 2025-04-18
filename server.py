@@ -6,12 +6,12 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Connect to PostgreSQL using environment variables
+# Connect to PostgreSQL using Render environment variables
 conn = psycopg2.connect(
-    host=os.getenv('localhost'),
-    database=os.getenv('postgres'),
-    user=os.getenv('postgres'),
-    password=os.getenv('31998369'),
+    host=os.getenv('DB_HOST', 'localhost'),
+    database=os.getenv('DB_NAME', 'postgres'),
+    user=os.getenv('DB_USER', 'postgres'),
+    password=os.getenv('DB_PASSWORD', '31998369'),
     port=os.getenv('DB_PORT', 6543)
 )
 cursor = conn.cursor()
@@ -45,6 +45,5 @@ def login():
         return jsonify({'status': 'invalid_credentials'}), 401
 
 if __name__ == '__main__':
-    from os import environ
-    port = int(environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)  # Port doesn't matter on Render
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
