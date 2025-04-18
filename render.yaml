@@ -3,7 +3,7 @@ services:
     name: flutter-login-backend
     env: python
     plan: free
-    buildCommand: ""
+    buildCommand: "pip install -r requirements.txt"
     startCommand: python server.py
     envVars:
       - key: DB_HOST
