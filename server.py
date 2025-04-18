@@ -94,23 +94,25 @@ def signup():
     except Exception as e:
         conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
+    
+ADMIN_EMAIL = 'smartcityportal941@gmail.com'
+ADMIN_PASSWORD = 'Admin@123'
+@app.route('/login', methods=['POST'])
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
-    is_admin = data.get('admin', False)
+
+    # Admin check
+    if email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
+        return jsonify({'status': 'admin'}), 200
 
     try:
-        if is_admin:
-            cursor.execute("SELECT * FROM admins WHERE email=%s AND password=%s", (email, password))
-        else:
-            cursor.execute("SELECT * FROM users WHERE email=%s AND password=%s", (email, password))
-
+        cursor.execute("SELECT * FROM users WHERE email=%s AND password=%s", (email, password))
         user = cursor.fetchone()
         if user:
-            return jsonify({'status': 'success', 'role': 'admin' if is_admin else 'user'}), 200
+            return jsonify({'status': 'success'}), 200
         else:
             return jsonify({'status': 'invalid_credentials'}), 401
     except Exception as e:
