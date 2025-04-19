@@ -94,10 +94,9 @@ def signup():
     except Exception as e:
         conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
-    
+
 ADMIN_EMAIL = 'smartcityportal941@gmail.com'
 ADMIN_PASSWORD = 'Admin@123'
-@app.route('/login', methods=['POST'])
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -144,6 +143,24 @@ def get_pending_bills(consumer_number):
         result = [{'id': b[0], 'title': b[1], 'amount': b[2]} for b in bills]
         return jsonify(result), 200
     except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/add-bill', methods=['POST'])
+def add_bill():
+    data = request.get_json()
+    consumer_number = data.get('consumer_number')
+    title = data.get('title')
+    amount = data.get('amount')
+
+    try:
+        cursor.execute("""
+            INSERT INTO pending_bills (consumer_number, title, amount)
+            VALUES (%s, %s, %s)
+        """, (consumer_number, title, amount))
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'Bill added successfully'}), 200
+    except Exception as e:
+        conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/pay_bill', methods=['POST'])
