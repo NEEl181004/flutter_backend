@@ -285,8 +285,9 @@ def get_parking_slots():
         rows = cursor.fetchall()
         slots_by_location = {}
 
+        # Organize the slots by location
         for slot_id, location in rows:
-            slot_str = str(slot_id)  # ensure slot is string like in frontend
+            slot_str = str(slot_id)  # Ensure slot_id is in string format like the frontend expects
             if location not in slots_by_location:
                 slots_by_location[location] = []
             slots_by_location[location].append(slot_str)
@@ -294,6 +295,9 @@ def get_parking_slots():
         return jsonify({'slots': slots_by_location}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
     
 @app.route('/parking/add', methods=['POST'])
 def add_parking_slot():
