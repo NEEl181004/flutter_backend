@@ -225,12 +225,18 @@ def book_parking():
             INSERT INTO parking_tickets (user_email, location, date, time, slot, payment_status)
             VALUES (%s, %s, %s, %s, %s, 'Paid')
         """, (email, location, date_str, time, slot))
+        # Update slot to marked as occupied
+        cursor.execute("""
+            UPDATE parking_slots
+            SET is_occupied = TRUE
+            WHERE slot_id = %s AND location = %s
+        """, (slot, location))
         conn.commit()
         return jsonify({'status': 'success', 'message': 'Ticket booked successfully'}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
+    
 @app.route('/my_tickets/<email>', methods=['GET'])
 def get_my_tickets(email):
     try:
