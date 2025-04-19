@@ -268,6 +268,42 @@ def get_occupied_slots():
         return jsonify({'occupied_slots': occupied}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/parking_slots', methods=['GET'])
+def get_parking_slots():
+    try:
+        cur.execute("SELECT slot_id, location FROM parking_slots WHERE is_occupied = FALSE")
+        rows = cur.fetchall()
+        slots_by_location = {}
+
+        for slot_id, location in rows:
+            if location not in slots_by_location:
+                slots_by_location[location] = []
+            slots_by_location[location].append(slot_id)
+
+        return jsonify({'slots': slots_by_location}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/parking/add', methods=['POST'])
+def add_parking_slot():
+    data = request.get_json()
+    slot_id = data.get('slot_id')
+    location = data.get('location')
+
+    if not slot_id or not location:
+        return jsonify({'error': 'Missing data'}), 400
+
+    try:
+        cur.execute("""
+            INSERT INTO parking_slots (slot_id, location, is_occupied, timestamp)
+            VALUES (%s, %s, FALSE, NOW())
+        """, (slot_id, location))
+        conn.commit()
+        return jsonify({'message': 'Slot added'}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
 
 # ===================== MAIN =====================
 if __name__ == '__main__':
