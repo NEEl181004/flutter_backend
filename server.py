@@ -18,7 +18,7 @@ try:
     )
     cursor = conn.cursor()
 
-    # Create users table
+    # Create all necessary tables
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -26,8 +26,6 @@ try:
             password TEXT NOT NULL
         );
     """)
-
-    # Create admins table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS admins (
             id SERIAL PRIMARY KEY,
@@ -35,8 +33,6 @@ try:
             password TEXT NOT NULL
         );
     """)
-
-    # Create pending_bills table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS pending_bills (
             id SERIAL PRIMARY KEY,
@@ -46,8 +42,6 @@ try:
             status VARCHAR(10) DEFAULT 'Unpaid'
         );
     """)
-
-    # Create payment_history table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_history (
             id SERIAL PRIMARY KEY,
@@ -57,7 +51,6 @@ try:
             payment_date DATE DEFAULT CURRENT_DATE
         );
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS parking_tickets (
             id SERIAL PRIMARY KEY,
@@ -77,10 +70,8 @@ try:
             location VARCHAR(100),
             is_occupied BOOLEAN DEFAULT FALSE,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            
         );
     """)
-
     conn.commit()
     print("✅ Connected to DB and ensured all tables exist")
 except Exception as e:
@@ -107,13 +98,13 @@ def signup():
 
 ADMIN_EMAIL = 'smartcityportal941@gmail.com'
 ADMIN_PASSWORD = 'Admin@123'
+
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
 
-    # Admin check
     if email == ADMIN_EMAIL and password == ADMIN_PASSWORD:
         return jsonify({'status': 'admin'}), 200
 
@@ -225,7 +216,6 @@ def book_parking():
             INSERT INTO parking_tickets (user_email, location, date, time, slot, payment_status)
             VALUES (%s, %s, %s, %s, %s, 'Paid')
         """, (email, location, date_str, time, slot))
-        # Update slot to marked as occupied
         cursor.execute("""
             UPDATE parking_slots
             SET is_occupied = TRUE
@@ -236,7 +226,7 @@ def book_parking():
     except Exception as e:
         conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
-    
+
 @app.route('/my_tickets/<email>', methods=['GET'])
 def get_my_tickets(email):
     try:
@@ -271,13 +261,11 @@ def get_occupied_slots():
             WHERE location = %s AND date = %s
               AND ABS(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - booking_timestamp)))/3600 < 1
         """, (location, date_str))
-        occupied = [str(row[0]) for row in cursor.fetchall()]  # convert to string if needed
-
-        # Match frontend expected format: {"slots": { "Location A": [...] }}
+        occupied = [str(row[0]) for row in cursor.fetchall()]
         return jsonify({'slots': {location: occupied}}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+
 @app.route('/parking_slots', methods=['GET'])
 def get_parking_slots():
     try:
@@ -285,9 +273,8 @@ def get_parking_slots():
         rows = cursor.fetchall()
         slots_by_location = {}
 
-        # Organize the slots by location
         for slot_id, location in rows:
-            slot_str = str(slot_id)  # Ensure slot_id is in string format like the frontend expects
+            slot_str = str(slot_id)
             if location not in slots_by_location:
                 slots_by_location[location] = []
             slots_by_location[location].append(slot_str)
@@ -296,9 +283,6 @@ def get_parking_slots():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True)
-    
 @app.route('/parking/add', methods=['POST'])
 def add_parking_slot():
     data = request.get_json()
@@ -318,7 +302,7 @@ def add_parking_slot():
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 500
-    
+
 @app.route('/parking_areas', methods=['GET'])
 def get_parking_areas():
     try:
@@ -329,31 +313,23 @@ def get_parking_areas():
             GROUP BY location
         """)
         occupied_rows = cursor.fetchall()
-        
-        # Get all unique parking locations
+
         cursor.execute("SELECT DISTINCT location FROM parking_slots")
         all_locations = cursor.fetchall()
-        
+
         parking_areas = []
-        
         for location in all_locations:
             location_name = location[0]
-            
-            # Get the number of occupied spots for the location
             occupied_spots = next((row[1] for row in occupied_rows if row[0] == location_name), 0)
-            
-            # Calculate available spots (30 total - occupied spots)
             available_spots = 30 - occupied_spots
-            
             parking_areas.append({
                 'name': location_name,
                 'spots': f'{available_spots} spots available',
             })
-        
+
         return jsonify(parking_areas), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
 
 # ===================== MAIN =====================
 if __name__ == '__main__':
