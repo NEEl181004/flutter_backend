@@ -272,8 +272,8 @@ def get_occupied_slots():
 @app.route('/parking_slots', methods=['GET'])
 def get_parking_slots():
     try:
-        cur.execute("SELECT slot_id, location FROM parking_slots WHERE is_occupied = FALSE")
-        rows = cur.fetchall()
+        cursor.execute("SELECT slot_id, location FROM parking_slots WHERE is_occupied = FALSE")
+        rows = cursor.fetchall()
         slots_by_location = {}
 
         for slot_id, location in rows:
@@ -295,7 +295,7 @@ def add_parking_slot():
         return jsonify({'error': 'Missing data'}), 400
 
     try:
-        cur.execute("""
+        cursor.execute("""
             INSERT INTO parking_slots (slot_id, location, is_occupied, timestamp)
             VALUES (%s, %s, FALSE, NOW())
         """, (slot_id, location))
