@@ -70,6 +70,15 @@ try:
             booking_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
+    cursor.execute("""
+        CREATE TABLE parking_slots (
+            id SERIAL PRIMARY KEY,
+            slot_id VARCHAR(50) NOT NULL,
+            location VARCHAR(100),
+            is_occupied BOOLEAN DEFAULT FALSE,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
 
     conn.commit()
     print("✅ Connected to DB and ensured all tables exist")
