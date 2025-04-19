@@ -77,7 +77,7 @@ try:
             location VARCHAR(100),
             is_occupied BOOLEAN DEFAULT FALSE,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+            );
     """)
 
     conn.commit()
@@ -286,21 +286,29 @@ def get_parking_slots():
         return jsonify({'error': str(e)}), 500
     
 @app.route('/parking/add', methods=['POST'])
+@app.route('/add_parking_location', methods=['POST'])
 def add_parking_slot():
     data = request.get_json()
-    slot_id = data.get('slot_id')
     location = data.get('location')
 
-    if not slot_id or not location:
-        return jsonify({'error': 'Missing data'}), 400
+    if not location:
+        return jsonify({'error': 'Location is required'}), 400
 
     try:
-        cursor.execute("""
-            INSERT INTO parking_slots (slot_id, location, is_occupied, timestamp)
-            VALUES (%s, %s, FALSE, NOW())
-        """, (slot_id, location))
+        # Check if location already exists
+        cursor.execute("SELECT 1 FROM parking_slots WHERE location = %s LIMIT 1", (location,))
+        if cursor.fetchone():
+            return jsonify({'error': 'Location already exists'}), 400
+
+        # Add 40 slots for the new location
+        for slot_id in range(1, 41):
+            cursor.execute("""
+                INSERT INTO parking_slots (slot_id, location, is_occupied, timestamp)
+                VALUES (%s, %s, FALSE, NOW())
+            """, (slot_id, location))
+        
         conn.commit()
-        return jsonify({'message': 'Slot added'}), 200
+        return jsonify({'message': 'Parking location and slots added successfully!'}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 500
