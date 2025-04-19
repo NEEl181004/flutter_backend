@@ -71,7 +71,7 @@ try:
         );
     """)
     cursor.execute("""
-        CREATE TABLE parking_slots (
+        CREATE TABLE IF NOT EXISTS parking_slots (
             id SERIAL PRIMARY KEY,
             slot_id VARCHAR(50) NOT NULL,
             location VARCHAR(100),
@@ -311,6 +311,42 @@ def add_parking_slot():
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/parking_areas', methods=['GET'])
+def get_parking_areas():
+    try:
+        cursor.execute("""
+            SELECT location, COUNT(*) 
+            FROM parking_slots 
+            WHERE is_occupied = TRUE 
+            GROUP BY location
+        """)
+        occupied_rows = cursor.fetchall()
+        
+        # Get all unique parking locations
+        cursor.execute("SELECT DISTINCT location FROM parking_slots")
+        all_locations = cursor.fetchall()
+        
+        parking_areas = []
+        
+        for location in all_locations:
+            location_name = location[0]
+            
+            # Get the number of occupied spots for the location
+            occupied_spots = next((row[1] for row in occupied_rows if row[0] == location_name), 0)
+            
+            # Calculate available spots (30 total - occupied spots)
+            available_spots = 30 - occupied_spots
+            
+            parking_areas.append({
+                'name': location_name,
+                'spots': f'{available_spots} spots available',
+            })
+        
+        return jsonify(parking_areas), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # ===================== MAIN =====================
 if __name__ == '__main__':
