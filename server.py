@@ -271,8 +271,10 @@ def get_occupied_slots():
             WHERE location = %s AND date = %s
               AND ABS(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - booking_timestamp)))/3600 < 1
         """, (location, date_str))
-        occupied = [row[0] for row in cursor.fetchall()]
-        return jsonify({'occupied_slots': occupied}), 200
+        occupied = [str(row[0]) for row in cursor.fetchall()]  # convert to string if needed
+
+        # Match frontend expected format: {"slots": { "Location A": [...] }}
+        return jsonify({'slots': {location: occupied}}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     
@@ -284,9 +286,10 @@ def get_parking_slots():
         slots_by_location = {}
 
         for slot_id, location in rows:
+            slot_str = str(slot_id)  # ensure slot is string like in frontend
             if location not in slots_by_location:
                 slots_by_location[location] = []
-            slots_by_location[location].append(slot_id)
+            slots_by_location[location].append(slot_str)
 
         return jsonify({'slots': slots_by_location}), 200
     except Exception as e:
