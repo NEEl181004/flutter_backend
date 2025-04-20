@@ -610,19 +610,38 @@ def add_hospital():
         print("Error occurred:", str(e))
         return jsonify({"error": "Internal server error"}), 500
     
-@app.route('/add_doctor', methods=['POST'])
 def add_doctor():
-    data = request.json
-    cursor.execute("SELECT id FROM hospitals WHERE name=%s", (data['hospital_name'],))
-    hospital = cursor.fetchone()
-    if hospital:
-        cursor.execute(
-            "INSERT INTO doctors (name, specialization, hospital_id) VALUES (%s, %s, %s)",
-            (data['name'], data['specialization'], hospital[0])
-        )
-        conn.commit()
-        return jsonify({"message": "Doctor added"})
-    return jsonify({"error": "Hospital not found"}), 400
+    try:
+        # Parse incoming JSON data
+        data = request.json
+        hospital_name = data.get('hospital_name')
+        doctor_name = data.get('name')
+        specialization = data.get('specialization')
+
+        if not hospital_name or not doctor_name or not specialization:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        # Find the hospital by name
+        cursor.execute("SELECT id FROM hospitals WHERE name=%s", (hospital_name,))
+        hospital = cursor.fetchone()
+
+        if hospital:
+            # Insert the doctor into the database
+            cursor.execute(
+                "INSERT INTO doctors (name, specialization, hospital_id) VALUES (%s, %s, %s)",
+                (doctor_name, specialization, hospital[0])
+            )
+            conn.commit()
+            return jsonify({"message": "Doctor added successfully"}), 201
+        else:
+            return jsonify({"error": "Hospital not found"}), 404
+
+    except psycopg2.DatabaseError as e:
+        conn.rollback()  # Rollback in case of error
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 @app.route('/order_medicine', methods=['POST'])
 def order_medicine():
