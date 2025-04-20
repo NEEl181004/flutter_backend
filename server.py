@@ -81,6 +81,37 @@ try:
         );
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS polls (
+    id SERIAL PRIMARY KEY,
+    question TEXT NOT NULL,
+    options TEXT NOT NULL,  -- Comma-separated list of options
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS events (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    date DATE NOT NULL,
+    time TIME NOT NULL,
+    location TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS news (
+    id SERIAL PRIMARY KEY,
+    headline VARCHAR(255) NOT NULL,
+    date VARCHAR(50) NOT NULL,
+    time VARCHAR(50) NOT NULL
+        );
+    """)
+
+
+
     conn.commit()
     print("✅ Connected to DB and ensured all tables exist")
 except Exception as e:
@@ -387,6 +418,118 @@ def get_alerts():
         return jsonify(response), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@app.route('/get_polls', methods=['GET'])
+def get_polls():
+    try:
+        cursor.execute("SELECT id, question, options FROM polls")
+        polls = cursor.fetchall()
+        response = []
+        for poll in polls:
+            poll_data = {
+                'id': poll[0],
+                'question': poll[1],
+                'options': poll[2].split(',')  # Assuming options are stored as comma-separated strings
+            }
+            response.append(poll_data)
+        return jsonify(response), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@app.route('/add_poll', methods=['POST'])
+def add_poll():
+    data = request.get_json()
+    question = data.get('question')
+    options = data.get('options')  # Expected to be a list of options
+
+    if not question or not options:
+        return jsonify({'status': 'error', 'message': 'Question and options are required'}), 400
+
+    try:
+        options_str = ','.join(options)  # Convert options list to comma-separated string
+        cursor.execute("INSERT INTO polls (question, options) VALUES (%s, %s)", (question, options_str))
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'Poll added successfully'}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@app.route('/add_event', methods=['POST'])
+def add_event():
+    data = request.get_json()
+    title = data.get('title')
+    date = data.get('date')
+    time = data.get('time')
+    location = data.get('location')
+
+    if not all([title, date, time, location]):
+        return jsonify({'status': 'error', 'message': 'All fields are required'}), 400
+
+    try:
+        cursor.execute("""
+            INSERT INTO events (title, date, time, location) 
+            VALUES (%s, %s, %s, %s)
+        """, (title, date, time, location))
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'Event added successfully'}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/get_events', methods=['GET'])
+def get_events():
+    try:
+        cursor.execute("SELECT title, date, time, location FROM events ORDER BY date")
+        records = cursor.fetchall()
+        events = []
+        for r in records:
+            events.append({
+                'title': r[0],
+                'date': r[1].strftime('%Y-%m-%d'),
+                'time': r[2].strftime('%H:%M'),
+                'location': r[3]
+            })
+        return jsonify({'events': events}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@app.route('/add_news', methods=['POST'])
+def add_news():
+    data = request.get_json()
+    headline = data.get('headline')
+    date = data.get('date')  # Expecting format: 'YYYY-MM-DD'
+    time = data.get('time')  # Expecting format: 'HH:MM' (24-hour format)
+    
+    if not all([headline, date, time]):
+        return jsonify({'status': 'error', 'message': 'All fields are required'}), 400
+
+    try:
+        cursor.execute("""
+            INSERT INTO news (headline, date, time)
+            VALUES (%s, %s, %s)
+        """, (headline, date, time))
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'News added successfully'}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/get_news', methods=['GET'])
+def get_news():
+    try:
+        cursor.execute("SELECT headline, date, time FROM news ORDER BY date DESC")
+        records = cursor.fetchall()
+        news = []
+        for r in records:
+            news.append({
+                'headline': r[0],
+                'date': r[1],
+                'time': r[2]
+            })
+        return jsonify({'news': news}), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 
 # ===================== MAIN =====================
