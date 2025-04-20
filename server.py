@@ -683,21 +683,7 @@ def order_medicine():
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 # Route to view order history
-@app.route('/order_history/<string:username>', methods=['GET'])
-def view_order_history(username):
-    cursor.execute("""
-        SELECT id, items, total_price, timestamp 
-        FROM medicine_orders WHERE username = %s ORDER BY timestamp DESC;
-    """, (username,))
-    
-    orders = cursor.fetchall()
-    cursor.close()
-    conn.close()
 
-    if orders:
-        return jsonify({"orders": orders}), 200
-    else:
-        return jsonify({"message": "No orders found for this user."}), 404
     
 @app.route('/order_history/<string:username>', methods=['GET'])
 def view_order_history(username):
