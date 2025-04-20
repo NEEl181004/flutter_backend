@@ -701,9 +701,7 @@ def view_order_history(username):
 
     except Exception as e:
         print(f"Error: {e}")
-        # Optional: Log the error for further analysis, or use a logging library for better error management
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
-
 
 
 # ===================== MAIN =====================
