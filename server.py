@@ -595,11 +595,21 @@ def book_appointment():
 
 @app.route('/add_hospital', methods=['POST'])
 def add_hospital():
-    name = request.json.get('name')
-    cursor.execute("INSERT INTO hospitals (name) VALUES (%s)", (name,))
-    conn.commit()
-    return jsonify({"message": "Hospital added"})
+    try:
+        data = request.get_json()
+        name = data.get('name')
 
+        if not name:
+            return jsonify({"error": "Missing 'name' in request"}), 400
+
+        cursor.execute("INSERT INTO hospitals (name) VALUES (%s)", (name,))
+        conn.commit()
+        return jsonify({"message": "Hospital added"}), 200
+
+    except Exception as e:
+        print("Error occurred:", str(e))
+        return jsonify({"error": "Internal server error"}), 500
+    
 @app.route('/add_doctor', methods=['POST'])
 def add_doctor():
     data = request.json
