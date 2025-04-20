@@ -593,6 +593,35 @@ def book_appointment():
     conn.commit()
     return jsonify({"message": "Appointment booked successfully"})
 
+@app.route('/appointments/<string:patient_name>', methods=['GET'])
+def get_appointments(patient_name):
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT a.hospital_name, d.name AS doctor_name, a.appointment_date, a.appointment_time
+                FROM appointments a
+                JOIN doctors d ON a.doctor_id = d.id
+                WHERE a.patient_name = %s
+                ORDER BY a.appointment_date DESC, a.appointment_time DESC;
+            """, (patient_name,))
+            
+            records = cur.fetchall()
+            appointments = [
+                {
+                    "hospital": row[0],
+                    "doctor": row[1],
+                    "date": row[2].strftime('%Y-%m-%d'),
+                    "time": row[3]
+                } for row in records
+            ]
+
+        return jsonify({"appointments": appointments}), 200
+
+    except Exception as e:
+        print(f"Error fetching appointments: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
 @app.route('/add_hospital', methods=['POST'])
 def add_hospital():
     try:
