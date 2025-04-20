@@ -72,6 +72,15 @@ try:
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS city_alerts (
+    id SERIAL PRIMARY KEY,
+    type VARCHAR(50) CHECK (type IN ('electricity', 'municipal')),
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
     conn.commit()
     print("✅ Connected to DB and ensured all tables exist")
 except Exception as e:
@@ -321,7 +330,7 @@ def get_parking_areas():
         for location in all_locations:
             location_name = location[0]
             occupied_spots = next((row[1] for row in occupied_rows if row[0] == location_name), 0)
-            available_spots = 30 - occupied_spots
+            available_spots = 40 - occupied_spots
             parking_areas.append({
                 'name': location_name,
                 'spots': f'{available_spots} spots available',
@@ -330,6 +339,55 @@ def get_parking_areas():
         return jsonify(parking_areas), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/update_alert', methods=['POST'])
+def update_alert():
+    data = request.get_json()
+    alert_type = data.get('type')  # "electricity" or "municipal"
+    message = data.get('message')
+
+    if alert_type not in ['electricity', 'municipal']:
+        return jsonify({'status': 'error', 'message': 'Invalid alert type'}), 400
+
+    try:
+        cursor.execute("""
+            DELETE FROM city_alerts WHERE type = %s
+        """, (alert_type,))
+        cursor.execute("""
+            INSERT INTO city_alerts (type, message) VALUES (%s, %s)
+        """, (alert_type, message))
+        conn.commit()
+        return jsonify({'status': 'success', 'message': f'{alert_type.capitalize()} alert updated'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@app.route('/get_alerts', methods=['GET'])
+def get_alerts():
+    try:
+        cursor.execute("""
+            SELECT type, message, created_at FROM city_alerts
+        """)
+        records = cursor.fetchall()
+        response = {
+            'electricity': None,
+            'municipal': None
+        }
+        for r in records:
+            if r[0] == 'electricity':
+                response['electricity'] = {
+                    'message': r[1],
+                    'created_at': r[2].strftime('%Y-%m-%d %H:%M')
+                }
+            elif r[0] == 'municipal':
+                response['municipal'] = {
+                    'message': r[1],
+                    'created_at': r[2].strftime('%Y-%m-%d %H:%M')
+                }
+        return jsonify(response), 200
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 # ===================== MAIN =====================
 if __name__ == '__main__':
