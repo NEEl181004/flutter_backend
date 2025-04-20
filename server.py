@@ -646,24 +646,41 @@ def add_doctor():
 
 @app.route('/order_medicine', methods=['POST'])
 def order_medicine():
-    data = request.json
-    username = data.get('username')
-    items = ', '.join(data.get('items'))  # Assuming it's a list of medicine items
-    total_price = data.get('total_price')
-    
-    if not username or not items or total_price is None:
-        return jsonify({"error": "Missing required fields"}), 400
+    try:
+        # Parse the incoming JSON data
+        data = request.json
+        username = data.get('username')
+        items = data.get('items')
+        total_price = data.get('total_price')
 
-    cursor.execute("""
-        INSERT INTO medicine_orders (username, items, total_price) 
-        VALUES (%s, %s, %s) RETURNING id;
-    """, (username, items, total_price))
-    order_id = cursor.fetchone()[0]
-    conn.commit()
-    cursor.close()
-    conn.close()
+        # Validate the incoming data
+        if not username or not isinstance(username, str):
+            return jsonify({"error": "Missing or invalid 'username'"}), 400
+        if not items or not isinstance(items, list) or not all(isinstance(i, str) for i in items):
+            return jsonify({"error": "Missing or invalid 'items' (must be a list of strings)"}), 400
+        if total_price is None or not isinstance(total_price, (int, float)):
+            return jsonify({"error": "Missing or invalid 'total_price'"}), 400
 
-    return jsonify({"message": "Order placed successfully", "order_id": order_id}), 201
+        # Connect to the database
+
+        # Insert the order into the database
+        cursor.execute("""
+            INSERT INTO medicine_orders (username, items, total_price)
+            VALUES (%s, %s, %s) RETURNING id;
+        """, (username, ', '.join(items), total_price))
+        order_id = cursor.fetchone()[0]
+
+        # Commit the transaction and close the cursor and connection
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        # Return a success message with the order ID
+        return jsonify({"message": "Order placed successfully", "order_id": order_id}), 201
+
+    except Exception as e:
+        # Handle any unexpected errors
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 # Route to view order history
 @app.route('/order_history/<string:username>', methods=['GET'])
@@ -682,27 +699,43 @@ def view_order_history(username):
     else:
         return jsonify({"message": "No orders found for this user."}), 404
     
-@app.route('/appointments/<string:patient_name>', methods=['GET'])
-def get_appointments(patient_name):
-    cursor.execute("""
-        SELECT a.hospital_name, d.name as doctor_name, a.appointment_date, a.appointment_time
-        FROM appointments a
-        JOIN doctors d ON a.doctor_id = d.id
-        WHERE a.patient_name = %s
-        ORDER BY a.appointment_date DESC
-    """, (patient_name,))
-    appointments = cursor.fetchall()
-    
-    result = [
-        {
-            "hospital": row[0],
-            "doctor": row[1],
-            "date": row[2].strftime("%Y-%m-%d"),
-            "time": row[3]
-        }
-        for row in appointments
-    ]
-    return jsonify({"appointments": result})
+@app.route('/order_history/<string:username>', methods=['GET'])
+def view_order_history(username):
+    try:
+        # Connect to the databas
+
+        # Execute the SQL query to fetch orders
+        cursor.execute("""
+            SELECT id, items, total_price, timestamp 
+            FROM medicine_orders WHERE username = %s ORDER BY timestamp DESC;
+        """, (username,))
+
+        # Fetch all orders from the query
+        orders = cursor.fetchall()
+
+        # Close the cursor and connection
+        cursor.close()
+        conn.close()
+
+        if orders:
+            # Format orders into a list of dictionaries
+            formatted_orders = [
+                {
+                    "order_id": order[0],
+                    "items": order[1],
+                    "total_price": order[2],
+                    "timestamp": order[3]
+                }
+                for order in orders
+            ]
+            return jsonify({"orders": formatted_orders}), 200
+        else:
+            return jsonify({"message": "No orders found for this user."}), 404
+
+    except Exception as e:
+        # Handle any exceptions, like database errors
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
 
 
 # ===================== MAIN =====================
