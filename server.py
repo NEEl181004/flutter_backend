@@ -110,7 +110,43 @@ try:
         );
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS hospitals (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+        );
+    """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS doctors (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    specialization TEXT,
+    hospital_id INTEGER REFERENCES hospitals(id)
+        );
+    """)
+
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS appointments (
+    id SERIAL PRIMARY KEY,               
+    patient_name TEXT,
+    hospital_name TEXT,               
+    doctor_id INTEGER REFERENCES doctors(id),
+    appointment_date DATE,
+    appointment_time TEXT
+        );
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS medicine_orders (
+    id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL,
+    items TEXT NOT NULL,
+    total_price NUMERIC(10,2) NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+    """)
 
     conn.commit()
     print("✅ Connected to DB and ensured all tables exist")
@@ -529,8 +565,92 @@ def get_news():
         return jsonify({'news': news}), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+    
 
+@app.route('/get_hospitals', methods=['GET'])
+def get_hospitals():
+    cursor.execute("SELECT id, name FROM hospitals")
+    hospitals = cursor.fetchall()
+    return jsonify([{"id": h[0], "name": h[1]} for h in hospitals])
 
+@app.route('/get_doctors/<hospital_name>', methods=['GET'])
+def get_doctors(hospital_name):
+    cursor.execute("SELECT id FROM hospitals WHERE name=%s", (hospital_name,))
+    hospital = cursor.fetchone()
+    if hospital:
+        cursor.execute("SELECT id, name FROM doctors WHERE hospital_id=%s", (hospital[0],))
+        doctors = cursor.fetchall()
+        return jsonify([{"id": d[0], "name": d[1]} for d in doctors])
+    return jsonify([])
+
+@app.route('/book_appointment', methods=['POST'])
+def book_appointment():
+    data = request.json
+    cursor.execute("""
+        INSERT INTO appointments (patient_name, hospital_name, doctor_id, appointment_date, appointment_time)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (data['patient_name'], data['hospital_name'], data['doctor_id'], data['date'], data['time']))
+    conn.commit()
+    return jsonify({"message": "Appointment booked successfully"})
+
+@app.route('/add_hospital', methods=['POST'])
+def add_hospital():
+    name = request.json.get('name')
+    cursor.execute("INSERT INTO hospitals (name) VALUES (%s)", (name,))
+    conn.commit()
+    return jsonify({"message": "Hospital added"})
+
+@app.route('/add_doctor', methods=['POST'])
+def add_doctor():
+    data = request.json
+    cursor.execute("SELECT id FROM hospitals WHERE name=%s", (data['hospital_name'],))
+    hospital = cursor.fetchone()
+    if hospital:
+        cursor.execute(
+            "INSERT INTO doctors (name, specialization, hospital_id) VALUES (%s, %s, %s)",
+            (data['name'], data['specialization'], hospital[0])
+        )
+        conn.commit()
+        return jsonify({"message": "Doctor added"})
+    return jsonify({"error": "Hospital not found"}), 400
+
+@app.route('/order_medicine', methods=['POST'])
+def order_medicine():
+    data = request.json
+    username = data.get('username')
+    items = ', '.join(data.get('items'))  # Assuming it's a list of medicine items
+    total_price = data.get('total_price')
+    
+    if not username or not items or total_price is None:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    cursor.execute("""
+        INSERT INTO medicine_orders (username, items, total_price) 
+        VALUES (%s, %s, %s) RETURNING id;
+    """, (username, items, total_price))
+    order_id = cursor.fetchone()[0]
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({"message": "Order placed successfully", "order_id": order_id}), 201
+
+# Route to view order history
+@app.route('/order_history/<string:username>', methods=['GET'])
+def view_order_history(username):
+    cursor.execute("""
+        SELECT id, items, total_price, timestamp 
+        FROM medicine_orders WHERE username = %s ORDER BY timestamp DESC;
+    """, (username,))
+    
+    orders = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    if orders:
+        return jsonify({"orders": orders}), 200
+    else:
+        return jsonify({"message": "No orders found for this user."}), 404
 
 # ===================== MAIN =====================
 if __name__ == '__main__':
