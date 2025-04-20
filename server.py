@@ -646,71 +646,52 @@ def add_doctor():
 
 @app.route('/order_medicine', methods=['POST'])
 def order_medicine():
+    data = request.get_json()
+
+    username = data.get('username')
+    items = data.get('items')
+    total_price = data.get('total_price')
+    timestamp = data.get('timestamp') or datetime.now().isoformat()
+
+    if not username or not items or not total_price:
+        return jsonify({'error': 'Missing fields'}), 400
+
     try:
-        # Parse the incoming JSON data
-        data = request.json
-        username = data.get('username')
-        items = data.get('items')
-        total_price = data.get('total_price')
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO medicine_orders (username, items, total_price, timestamp)
+                VALUES (%s, %s, %s, %s) RETURNING id
+            """, (username, items, total_price, timestamp))
 
-        # Validate the incoming data
-        if not username or not isinstance(username, str):
-            return jsonify({"error": "Missing or invalid 'username'"}), 400
-        if not items or not isinstance(items, list) or not all(isinstance(i, str) for i in items):
-            return jsonify({"error": "Missing or invalid 'items' (must be a list of strings)"}), 400
-        if total_price is None or not isinstance(total_price, (int, float)):
-            return jsonify({"error": "Missing or invalid 'total_price'"}), 400
-
-        # Connect to the database
-
-        # Insert the order into the database
-        cursor.execute("""
-            INSERT INTO medicine_orders (username, items, total_price)
-            VALUES (%s, %s, %s) RETURNING id;
-        """, (username, ', '.join(items), total_price))
-        order_id = cursor.fetchone()[0]
-
-        # Commit the transaction and close the cursor and connection
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        # Return a success message with the order ID
-        return jsonify({"message": "Order placed successfully", "order_id": order_id}), 201
+            order_id = cur.fetchone()[0]
+            conn.commit()
+            return jsonify({'message': 'Order placed', 'order_id': order_id}), 201
 
     except Exception as e:
-        # Handle any unexpected errors
-        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
-
-# Route to view order history
-
+        conn.rollback()
+        print(f"Error: {e}")
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
     
 @app.route('/order_history/<string:username>', methods=['GET'])
 def view_order_history(username):
     try:
-        # Connect to the databas
-
-        # Execute the SQL query to fetch orders
-        cursor.execute("""
-            SELECT id, items, total_price, timestamp 
-            FROM medicine_orders WHERE username = %s ORDER BY timestamp DESC;
-        """, (username,))
-
-        # Fetch all orders from the query
-        orders = cursor.fetchall()
-
-        # Close the cursor and connection
-        cursor.close()
-        conn.close()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, items, total_price, timestamp 
+                FROM medicine_orders 
+                WHERE username = %s 
+                ORDER BY timestamp DESC;
+            """, (username,))
+            
+            orders = cur.fetchall()
 
         if orders:
-            # Format orders into a list of dictionaries
             formatted_orders = [
                 {
                     "order_id": order[0],
                     "items": order[1],
-                    "total_price": order[2],
-                    "timestamp": order[3]
+                    "total_price": float(order[2]),
+                    "timestamp": order[3].isoformat() if order[3] else None
                 }
                 for order in orders
             ]
@@ -719,7 +700,7 @@ def view_order_history(username):
             return jsonify({"message": "No orders found for this user."}), 404
 
     except Exception as e:
-        # Handle any exceptions, like database errors
+        print(f"Error: {e}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
