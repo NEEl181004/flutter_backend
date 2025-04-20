@@ -662,15 +662,15 @@ def view_order_history(username):
     else:
         return jsonify({"message": "No orders found for this user."}), 404
     
-@app.route('/appointments/<string:username>', methods=['GET'])
-def get_appointments(username):
+@app.route('/appointments/<string:patient_name>', methods=['GET'])
+def get_appointments(patient_name):
     cursor.execute("""
         SELECT a.hospital_name, d.name as doctor_name, a.appointment_date, a.appointment_time
         FROM appointments a
         JOIN doctors d ON a.doctor_id = d.id
         WHERE a.patient_name = %s
         ORDER BY a.appointment_date DESC
-    """, (username,))
+    """, (patient_name,))
     appointments = cursor.fetchall()
     
     result = [
@@ -683,6 +683,7 @@ def get_appointments(username):
         for row in appointments
     ]
     return jsonify({"appointments": result})
+
 
 # ===================== MAIN =====================
 if __name__ == '__main__':
