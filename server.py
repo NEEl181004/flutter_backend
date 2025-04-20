@@ -610,7 +610,7 @@ def add_hospital():
         print("Error occurred:", str(e))
         return jsonify({"error": "Internal server error"}), 500
     
-@app.route('/add_doctor',method=['POST'])    
+@app.route('/add_doctor',methods=['POST'])    
 def add_doctor():
     try:
         # Parse incoming JSON data
