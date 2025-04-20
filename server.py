@@ -689,7 +689,7 @@ def view_order_history(username):
             formatted_orders = [
                 {
                     "order_id": order[0],
-                    "items": order[1],
+                    "items": order[1] if isinstance(order[1], str) else str(order[1]),  # Ensure it's a string if stored as a list in DB
                     "total_price": float(order[2]),
                     "timestamp": order[3].isoformat() if order[3] else None
                 }
@@ -701,6 +701,7 @@ def view_order_history(username):
 
     except Exception as e:
         print(f"Error: {e}")
+        # Optional: Log the error for further analysis, or use a logging library for better error management
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 
