@@ -540,6 +540,9 @@ def add_poll():
         conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
     
+import re
+from flask_mail import Message
+
 @app.route('/add_event', methods=['POST'])
 def add_event():
     data = request.get_json()
@@ -552,15 +555,52 @@ def add_event():
         return jsonify({'status': 'error', 'message': 'All fields are required'}), 400
 
     try:
+        # Insert into events table
         cursor.execute("""
             INSERT INTO events (title, date, time, location) 
             VALUES (%s, %s, %s, %s)
         """, (title, date, time, location))
         conn.commit()
-        return jsonify({'status': 'success', 'message': 'Event added successfully'}), 201
+
+        # Fetch all user emails
+        cursor.execute("SELECT email FROM users")
+        user_emails = [row[0] for row in cursor.fetchall()]
+        print("User emails before filtering:", user_emails)
+
+        # Validate emails
+        def is_valid_email(email):
+            return re.match(r"[^@]+@[^@]+\.[^@]+", email)
+
+        valid_emails = [email for email in user_emails if email and is_valid_email(email)]
+        print("Valid user emails:", valid_emails)
+
+        if not valid_emails:
+            return jsonify({'status': 'error', 'message': 'No valid user emails found'}), 500
+
+        # Compose and send email
+        subject = f"📅 New City Event: {title}"
+        body = f"You're invited to a new event!\n\n📌 {title}\n📅 Date: {date}\n⏰ Time: {time}\n📍 Location: {location}\n\nDon't miss it!"
+
+        msg = Message(
+            subject=subject,
+            sender=app.config['MAIL_USERNAME'],
+            recipients=valid_emails,
+            body=body
+        )
+
+        try:
+            mail.send(msg)
+        except Exception as mail_err:
+            print("Mail send error:", mail_err)
+            return jsonify({'status': 'error', 'message': 'Event added, but email failed', 'mail_error': str(mail_err)}), 500
+
+        return jsonify({'status': 'success', 'message': 'Event added and email sent successfully'}), 201
+
     except Exception as e:
         conn.rollback()
+        print("Exception:", e)
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @app.route('/get_events', methods=['GET'])
 def get_events():
