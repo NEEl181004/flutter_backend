@@ -3,9 +3,18 @@ from flask_cors import CORS
 import psycopg2
 import os
 from datetime import date, datetime
+from flask_mail import Mail, Message
 
 app = Flask(__name__)
 CORS(app)
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'smartcityportal941@gmail.com'
+app.config['MAIL_PASSWORD'] = 'Admin@123'
+
+mail = Mail(app)
 
 # PostgreSQL connection using Render environment variables
 try:
@@ -417,14 +426,31 @@ def update_alert():
         return jsonify({'status': 'error', 'message': 'Invalid alert type'}), 400
 
     try:
-        cursor.execute("""
-            DELETE FROM city_alerts WHERE type = %s
-        """, (alert_type,))
-        cursor.execute("""
-            INSERT INTO city_alerts (type, message) VALUES (%s, %s)
-        """, (alert_type, message))
+        # Overwrite the existing alert
+        cursor.execute("DELETE FROM city_alerts WHERE type = %s", (alert_type,))
+        cursor.execute("INSERT INTO city_alerts (type, message) VALUES (%s, %s)", (alert_type, message))
         conn.commit()
-        return jsonify({'status': 'success', 'message': f'{alert_type.capitalize()} alert updated'})
+
+        # Fetch all user emails
+        cursor.execute("SELECT email FROM users")
+        user_emails = [row[0] for row in cursor.fetchall()]
+
+        # Compose the email
+        subject = f"🚨 {alert_type.capitalize()} Alert Update"
+        body = f"{alert_type.capitalize()} Alert:\n\n{message}\n\nPlease take necessary action or be informed."
+
+        msg = Message(
+            subject=subject,
+            sender=app.config['MAIL_USERNAME'],
+            recipients=user_emails,
+            body=body
+        )
+
+        # Send the email
+        mail.send(msg)
+
+        return jsonify({'status': 'success', 'message': f'{alert_type.capitalize()} alert updated and emails sent'}), 200
+
     except Exception as e:
         conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -533,22 +559,41 @@ def get_events():
 def add_news():
     data = request.get_json()
     headline = data.get('headline')
-    date = data.get('date')  # Expecting format: 'YYYY-MM-DD'
-    time = data.get('time')  # Expecting format: 'HH:MM' (24-hour format)
-    
+    date = data.get('date')  # Expected format: 'YYYY-MM-DD'
+    time = data.get('time')  # Expected format: 'HH:MM'
+
     if not all([headline, date, time]):
         return jsonify({'status': 'error', 'message': 'All fields are required'}), 400
 
     try:
+        # Insert into news table
         cursor.execute("""
             INSERT INTO news (headline, date, time)
             VALUES (%s, %s, %s)
         """, (headline, date, time))
         conn.commit()
-        return jsonify({'status': 'success', 'message': 'News added successfully'}), 201
+
+        # Fetch all user emails
+        cursor.execute("SELECT email FROM users")
+        user_emails = [row[0] for row in cursor.fetchall()]
+
+        # Compose email
+        msg = Message(
+            subject='📢 New City Update: ' + headline,
+            sender=app.config['MAIL_USERNAME'],
+            recipients=user_emails,
+            body=f"📰 {headline}\n\n📅 Date: {date}\n⏰ Time: {time}\n\nStay informed!"
+        )
+
+        # Send email to all users
+        mail.send(msg)
+
+        return jsonify({'status': 'success', 'message': 'News added and emails sent successfully'}), 201
+
     except Exception as e:
         conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @app.route('/get_news', methods=['GET'])
 def get_news():
