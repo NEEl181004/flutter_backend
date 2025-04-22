@@ -5,6 +5,7 @@ import os
 from datetime import date, datetime
 from flask_mail import Mail, Message
 import traceback 
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -28,7 +29,7 @@ try:
     app.config['MAIL_PORT'] = 587
     app.config['MAIL_USE_TLS'] = True
     app.config['MAIL_USERNAME'] = 'smartcityportal941@gmail.com'
-    app.config['MAIL_PASSWORD'] = 'Admin@123'
+    app.config['MAIL_PASSWORD'] = 'kfodnyzkvjyganue'
     app.config['MAIL_USE_SSL'] = False
     mail = Mail(app)
 
@@ -444,10 +445,17 @@ def update_alert():
         # Fetch all user emails
         cursor.execute("SELECT email FROM users")
         user_emails = [row[0] for row in cursor.fetchall()]
-        print("User emails:", user_emails)
+        print("User emails before filtering:", user_emails)
+
+        # Filter valid emails
+        def is_valid_email(email):
+            return re.match(r"[^@]+@[^@]+\.[^@]+", email)
+
+        user_emails = [email for email in user_emails if email and is_valid_email(email)]
+        print("Valid user emails:", user_emails)
 
         if not user_emails:
-            return jsonify({'status': 'error', 'message': 'No users found to send alert'}), 500
+            return jsonify({'status': 'error', 'message': 'No valid user emails found'}), 500
 
         # Compose the email
         subject = f"🚨 {alert_type.capitalize()} Alert Update"
@@ -470,7 +478,6 @@ def update_alert():
         print("Exception occurred:", str(e))
         traceback.print_exc()
         return jsonify({'status': 'error', 'message': 'Server error', 'details': str(e)}), 500
-
     
 @app.route('/get_alerts', methods=['GET'])
 def get_alerts():
@@ -593,6 +600,17 @@ def add_news():
         # Fetch all user emails
         cursor.execute("SELECT email FROM users")
         user_emails = [row[0] for row in cursor.fetchall()]
+        print("User emails before filtering:", user_emails)
+
+        # Email validation
+        def is_valid_email(email):
+            return re.match(r"[^@]+@[^@]+\.[^@]+", email)
+
+        user_emails = [email for email in user_emails if email and is_valid_email(email)]
+        print("Valid user emails:", user_emails)
+
+        if not user_emails:
+            return jsonify({'status': 'error', 'message': 'No valid email addresses found'}), 500
 
         # Compose email
         msg = Message(
